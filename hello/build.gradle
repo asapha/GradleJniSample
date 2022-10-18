@@ -6,6 +6,7 @@ import org.gradle.internal.jvm.Jvm
  */
 plugins {
     id 'cpp-library'
+    id("visual-studio")
 }
 
 group 'org.example'
@@ -25,14 +26,28 @@ library {
         } else if (osFamily.windows) {
             compileTask.includes.from("${Jvm.current().javaHome}/include/win32")
         }
+    }
+}
 
-        compileTask.source.from fileTree(dir: "src/main/c", include: "**/*.c")
-
-        def toolChain = binary.toolChain
-        if (toolChain instanceof VisualCpp) {
-            compileTask.compilerArgs.addAll(["/TC"])
-        } else if (toolChain instanceof GccCompatibleToolChain) {
-            compileTask.compilerArgs.addAll(["-x", "c", "-std=c11"])
+visualStudio {
+    projects.all {
+        projectFile.withXml {
+            asNode()
+                .appendNode('PropertyGroup', [Condition: "'\$(Configuration)|\$(Platform)'=='debug|Win32'"])
+                .appendNode('IncludePath',
+                    "\$(VC_IncludePath);\$(WindowsSDK_IncludePath);" +
+                        // Makes standard imports such as <iostream> available.
+                        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1;" +
+                        // Makes std::memcpy available.
+                        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include;" +
+                        // Makes pthread.h available.
+                        // https://andreasfertig.blog/2021/02/clang-and-gcc-on-macos-catalina-finding-the-include-paths/
+                        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/;" +
+                        // Makes jni.h available.
+                        "\$(JAVA_HOME)\\include\\;" +
+                        "\$(JAVA_HOME)\\include\\win32\\;" +
+                        "\$(JAVA_HOME)\\include\\darwin\\;"
+                )
         }
     }
 }
